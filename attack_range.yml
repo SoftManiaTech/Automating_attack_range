@@ -1,0 +1,218 @@
+---
+- name: Setup Splunk Attack Range (fully automated, venv-based)
+  hosts: attack_range
+  become: yes
+  gather_facts: false
+  vars:
+    terraform_version: "1.9.8"
+    terraform_zip: "/home/ubuntu/terraform.zip"
+    awscli_zip: "/home/ubuntu/awscliv2.zip"
+    venv_path: "/home/ubuntu/attack_range/venv"
+    repo_dir: "/home/ubuntu/attack_range"
+
+    attack_range_provider: "{{ lookup('env','ATTACK_RANGE_PROVIDER') | default('aws') }}"
+    attack_range_region: "{{ lookup('env','ATTACK_RANGE_REGION') | default('ap-southeast-2') }}"
+    attack_range_password: "{{ lookup('env','ATTACK_RANGE_PASSWORD') | default('changeme') }}"
+    attack_range_instance_type: "{{ lookup('env','ATTACK_RANGE_INSTANCE_TYPE') | default('t2.medium') }}"
+    attack_range_key_name: "{{ lookup('env','ATTACK_RANGE_KEY_NAME') | default('attack-range-key-pair') }}"
+    attack_range_private_key: "{{ lookup('env','ATTACK_RANGE_PRIVATE_KEY') | default('/home/ubuntu/.ssh/Admin123.pem') }}"
+
+    attack_range_splunk: "{{ lookup('env','ATTACK_RANGE_SPLUNK') | default('yes', true) }}"
+    attack_range_snort:  "{{ lookup('env','ATTACK_RANGE_SNORT')  | default('no', true) }}"
+    attack_range_zeek:   "{{ lookup('env','ATTACK_RANGE_ZEEK')   | default('no', true) }}"
+    attack_range_nginx:  "{{ lookup('env','ATTACK_RANGE_NGINX')  | default('no', true) }}"
+
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+
+    - name: Test SSH connectivity
+      ansible.builtin.ping:
+
+  tasks:
+    - name: Update apt cache and upgrade
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: Install base packages
+      ansible.builtin.apt:
+        name:
+          - python3
+          - python3-venv
+          - python3-pip
+          - python3-full
+          - git
+          - unzip
+          - curl
+          - zip
+          - build-essential
+          - libffi-dev
+          - libssl-dev
+          - python3-dev
+          - dos2unix
+        state: present
+        update_cache: yes
+
+    - name: Download Terraform
+      ansible.builtin.get_url:
+        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+        dest: "{{ terraform_zip }}"
+        mode: '0644'
+
+    - name: Unarchive Terraform
+      ansible.builtin.unarchive:
+        src: "{{ terraform_zip }}"
+        dest: "/usr/local/bin/"
+        remote_src: yes
+      args:
+        creates: "/usr/local/bin/terraform"
+
+    - name: Ensure terraform is in PATH
+      ansible.builtin.lineinfile:
+        path: /home/ubuntu/.bashrc
+        line: 'export PATH="/usr/local/bin:$PATH"'
+        create: yes
+      become_user: ubuntu
+
+    - name: Clone attack_range repo
+      ansible.builtin.git:
+        repo: https://github.com/splunk/attack_range.git
+        dest: "{{ repo_dir }}"
+        version: master
+        force: yes
+      become_user: ubuntu
+
+    - name: Download AWS CLI v2
+      ansible.builtin.get_url:
+        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
+        dest: "{{ awscli_zip }}"
+        mode: '0644'
+
+    - name: Unzip AWS CLI
+      ansible.builtin.unarchive:
+        src: "{{ awscli_zip }}"
+        dest: /home/ubuntu/
+        remote_src: yes
+
+    - name: Install AWS CLI
+      ansible.builtin.command:
+        cmd: ./aws/install --update
+        chdir: /home/ubuntu
+        creates: /usr/local/bin/aws
+
+    - name: Patch requirements.txt (remove ansible pin & fix cffi)
+      ansible.builtin.replace:
+        path: "{{ repo_dir }}/requirements.txt"
+        regexp: '^(ansible==.*)$'
+        replace: '# \1'
+      ignore_errors: yes
+      become_user: ubuntu
+
+    - name: Patch cffi version in requirements.txt
+      ansible.builtin.replace:
+        path: "{{ repo_dir }}/requirements.txt"
+        regexp: 'cffi==1.13.2'
+        replace: 'cffi==1.15.1'
+      ignore_errors: yes
+      become_user: ubuntu
+
+    - name: Patch splunk-sdk version
+      ansible.builtin.replace:
+        path: "{{ repo_dir }}/requirements.txt"
+        regexp: '^splunk-sdk==.*$'
+        replace: 'splunk-sdk==2.0.1'
+      ignore_errors: yes
+      become_user: ubuntu
+
+    - name: Create virtual environment
+      ansible.builtin.command:
+        cmd: python3 -m venv "{{ venv_path }}"
+      args:
+        creates: "{{ venv_path }}"
+      become_user: ubuntu
+
+    - name: Upgrade venv pip/setuptools/wheel
+      ansible.builtin.shell: |
+        set -e
+        source "{{ venv_path }}/bin/activate"
+        python -m pip install --upgrade pip setuptools wheel
+      args:
+        executable: /bin/bash
+      become_user: ubuntu
+
+    - name: Pin urllib3<2 and reinstall boto3/botocore
+      ansible.builtin.shell: |
+        set -e
+        source "{{ venv_path }}/bin/activate"
+        pip install --upgrade "urllib3<2"
+        pip install --force-reinstall --no-cache-dir boto3 botocore
+      args:
+        executable: /bin/bash
+      become_user: ubuntu
+
+    - name: Install python dependencies inside venv
+      ansible.builtin.shell: |
+        set -e
+        source "{{ venv_path }}/bin/activate"
+        cd "{{ repo_dir }}"
+        pip install -r requirements.txt
+        pip install --upgrade "tabulate>=0.9.0"
+        pip install "python-terraform==0.10.1" "python-hcl2==4.3.3"
+      args:
+        chdir: "{{ repo_dir }}"
+        executable: /bin/bash
+      become_user: ubuntu
+
+    - name: Ensure attack_range.conf exists
+      ansible.builtin.command:
+        cmd: cp -n attack_range.conf.template attack_range.conf
+        chdir: "{{ repo_dir }}"
+      become_user: ubuntu
+
+    - name: Configure attack_range.conf - cloud_provider
+      ansible.builtin.ini_file:
+        path: "{{ repo_dir }}/attack_range.conf"
+        section: global
+        option: cloud_provider
+        value: "{{ attack_range_provider }}"
+      become_user: ubuntu
+
+    - name: Configure attack_range.conf - aws region
+      ansible.builtin.ini_file:
+        path: "{{ repo_dir }}/attack_range.conf"
+        section: aws
+        option: region
+        value: "{{ attack_range_region }}"
+      become_user: ubuntu
+
+    - name: Terraform init
+      ansible.builtin.command:
+        cmd: /usr/local/bin/terraform init -input=false
+        chdir: "{{ repo_dir }}/terraform/aws"
+      register: terraform_init
+      changed_when: "'Terraform has been successfully initialized' in terraform_init.stdout"
+      failed_when: terraform_init.rc not in [0,1]
+
+    - name: Run attack_range build with debug
+      ansible.builtin.shell: |
+        set -e
+        source "{{ venv_path }}/bin/activate"
+        cd "{{ repo_dir }}"
+        python attack_range.py -c attack_range.conf build --debug
+      args:
+        chdir: "{{ repo_dir }}"
+        executable: /bin/bash
+      become_user: ubuntu
+      register: attack_range_build
+      failed_when: attack_range_build.rc != 0
+
+    - name: Show build logs if failed
+      ansible.builtin.debug:
+        msg: |
+          rc={{ attack_range_build.rc }}
+          stdout={{ attack_range_build.stdout | default('') }}
+          stderr={{ attack_range_build.stderr | default('') }}
+      when: attack_range_build.rc != 0
