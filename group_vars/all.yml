@@ -1,0 +1,10 @@
+---
+terraform_url: "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+terraform_zip: "/tmp/terraform.zip"
+awscli_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+awscliv2_zip: "/tmp/awscliv2.zip"
+
+# Fill in your AWS keys and default region
+aws_access_key: "YOUR_AWS_ACCESS_KEY"
+aws_secret_key: "YOUR_AWS_SECRET_KEY"
+aws_region: "YOUR_REGION"

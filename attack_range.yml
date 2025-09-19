@@ -1,218 +1,172 @@
 ---
-- name: Setup Splunk Attack Range (fully automated, venv-based)
-  hosts: attack_range
+- name: Install & prepare Attack Range prerequisites (exact steps you provided)
+  hosts: all
   become: yes
-  gather_facts: false
-  vars:
-    terraform_version: "1.9.8"
-    terraform_zip: "/home/ubuntu/terraform.zip"
-    awscli_zip: "/home/ubuntu/awscliv2.zip"
-    venv_path: "/home/ubuntu/attack_range/venv"
-    repo_dir: "/home/ubuntu/attack_range"
-
-    attack_range_provider: "{{ lookup('env','ATTACK_RANGE_PROVIDER') | default('aws') }}"
-    attack_range_region: "{{ lookup('env','ATTACK_RANGE_REGION') | default('ap-southeast-2') }}"
-    attack_range_password: "{{ lookup('env','ATTACK_RANGE_PASSWORD') | default('changeme') }}"
-    attack_range_instance_type: "{{ lookup('env','ATTACK_RANGE_INSTANCE_TYPE') | default('t2.medium') }}"
-    attack_range_key_name: "{{ lookup('env','ATTACK_RANGE_KEY_NAME') | default('attack-range-key-pair') }}"
-    attack_range_private_key: "{{ lookup('env','ATTACK_RANGE_PRIVATE_KEY') | default('/home/ubuntu/.ssh/Admin123.pem') }}"
-
-    attack_range_splunk: "{{ lookup('env','ATTACK_RANGE_SPLUNK') | default('yes', true) }}"
-    attack_range_snort:  "{{ lookup('env','ATTACK_RANGE_SNORT')  | default('no', true) }}"
-    attack_range_zeek:   "{{ lookup('env','ATTACK_RANGE_ZEEK')   | default('no', true) }}"
-    attack_range_nginx:  "{{ lookup('env','ATTACK_RANGE_NGINX')  | default('no', true) }}"
-
-  pre_tasks:
-    - name: Wait for SSH to become available
-      ansible.builtin.wait_for_connection:
-        timeout: 300
-
-    - name: Test SSH connectivity
-      ansible.builtin.ping:
 
   tasks:
-    - name: Update apt cache and upgrade
-      ansible.builtin.apt:
+    - name: Apt update
+      apt:
         update_cache: yes
-        upgrade: dist
         cache_valid_time: 3600
 
     - name: Install base packages
-      ansible.builtin.apt:
+      apt:
         name:
           - python3
-          - python3-venv
-          - python3-pip
-          - python3-full
           - git
           - unzip
+          - python3-pip
           - curl
-          - zip
-          - build-essential
-          - libffi-dev
-          - libssl-dev
-          - python3-dev
-          - dos2unix
         state: present
-        update_cache: yes
 
-    - name: Download Terraform
-      ansible.builtin.get_url:
-        url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip"
+    - name: Download Terraform zip
+      get_url:
+        url: "{{ terraform_url }}"
         dest: "{{ terraform_zip }}"
         mode: '0644'
 
     - name: Unarchive Terraform
-      ansible.builtin.unarchive:
+      unarchive:
         src: "{{ terraform_zip }}"
-        dest: "/usr/local/bin/"
+        dest: /tmp
         remote_src: yes
+
+    - name: Move terraform binary to /usr/local/bin
+      command: mv /tmp/terraform /usr/local/bin/terraform
       args:
-        creates: "/usr/local/bin/terraform"
+        creates: /usr/local/bin/terraform
 
-    - name: Ensure terraform is in PATH
-      ansible.builtin.lineinfile:
-        path: /home/ubuntu/.bashrc
-        line: 'export PATH="/usr/local/bin:$PATH"'
-        create: yes
-      become_user: ubuntu
+    - name: Ensure terraform is executable
+      file:
+        path: /usr/local/bin/terraform
+        mode: '0755'
+        owner: root
+        group: root
 
-    - name: Clone attack_range repo
-      ansible.builtin.git:
-        repo: https://github.com/splunk/attack_range.git
-        dest: "{{ repo_dir }}"
-        version: master
-        force: yes
-      become_user: ubuntu
+    - name: Clone the Attack Range repository
+      git:
+        repo: "https://github.com/splunk/attack_range.git"
+        dest: "{{ ansible_env.HOME }}/attack_range"
+        version: HEAD
+        update: no
 
-    - name: Download AWS CLI v2
-      ansible.builtin.get_url:
-        url: https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip
-        dest: "{{ awscli_zip }}"
+    - name: Download AWS CLI v2 zip
+      get_url:
+        url: "{{ awscli_url }}"
+        dest: "{{ awscliv2_zip }}"
         mode: '0644'
 
-    - name: Unzip AWS CLI
-      ansible.builtin.unarchive:
-        src: "{{ awscli_zip }}"
-        dest: /home/ubuntu/
+    - name: Unarchive AWS CLI v2
+      unarchive:
+        src: "{{ awscliv2_zip }}"
+        dest: /tmp
         remote_src: yes
+        creates: /tmp/aws/install
 
-    - name: Install AWS CLI
-      ansible.builtin.command:
-        cmd: ./aws/install --update
-        chdir: /home/ubuntu
+    - name: Install AWS CLI v2
+      command: /tmp/aws/install --update
+      args:
         creates: /usr/local/bin/aws
 
-    - name: Patch requirements.txt (remove ansible pin & fix cffi)
-      ansible.builtin.replace:
-        path: "{{ repo_dir }}/requirements.txt"
-        regexp: '^(ansible==.*)$'
-        replace: '# \1'
+    - name: Verify aws --version
+      command: aws --version
+      register: aws_version
       ignore_errors: yes
-      become_user: ubuntu
 
-    - name: Patch cffi version in requirements.txt
-      ansible.builtin.replace:
-        path: "{{ repo_dir }}/requirements.txt"
-        regexp: 'cffi==1.13.2'
-        replace: 'cffi==1.15.1'
-      ignore_errors: yes
-      become_user: ubuntu
+    - name: Print aws version (for debug)
+      debug:
+        msg: "{{ aws_version.stdout | default(aws_version.stderr) }}"
 
-    - name: Patch splunk-sdk version
-      ansible.builtin.replace:
-        path: "{{ repo_dir }}/requirements.txt"
-        regexp: '^splunk-sdk==.*$'
-        replace: 'splunk-sdk==2.0.1'
-      ignore_errors: yes
-      become_user: ubuntu
+    - name: Ensure .aws directory exists in remote user's HOME
+      file:
+        path: "{{ ansible_env.HOME }}/.aws"
+        state: directory
+        mode: '0700'
+        owner: "{{ ansible_user_id | default(ansible_user) }}"
+        group: "{{ ansible_user_id | default(ansible_user) }}"
 
-    - name: Create virtual environment
-      ansible.builtin.command:
-        cmd: python3 -m venv "{{ venv_path }}"
+    - name: Create AWS credentials file
+      copy:
+        dest: "{{ ansible_env.HOME }}/.aws/credentials"
+        content: |
+          [default]
+          aws_access_key_id = {{ aws_access_key }}
+          aws_secret_access_key = {{ aws_secret_key }}
+        owner: "{{ ansible_user_id | default(ansible_user) }}"
+        group: "{{ ansible_user_id | default(ansible_user) }}"
+        mode: '0600'
+
+    - name: Create AWS config file (region)
+      copy:
+        dest: "{{ ansible_env.HOME }}/.aws/config"
+        content: |
+          [default]
+          region = {{ aws_region }}
+        owner: "{{ ansible_user_id | default(ansible_user) }}"
+        group: "{{ ansible_user_id | default(ansible_user) }}"
+        mode: '0644'
+  
+    - name: Install Poetry and Python dependencies
+      shell: |
+        curl -sSL https://install.python-poetry.org/ | python3 -
+        export PATH="$HOME/.local/bin:$PATH"
+        poetry self add poetry-plugin-shell
+        poetry install --no-interaction
       args:
-        creates: "{{ venv_path }}"
-      become_user: ubuntu
-
-    - name: Upgrade venv pip/setuptools/wheel
-      ansible.builtin.shell: |
-        set -e
-        source "{{ venv_path }}/bin/activate"
-        python -m pip install --upgrade pip setuptools wheel
-      args:
+        chdir: /root/attack_range         
         executable: /bin/bash
-      become_user: ubuntu
+      become: yes
 
-    - name: Pin urllib3<2 and reinstall boto3/botocore
-      ansible.builtin.shell: |
-        set -e
-        source "{{ venv_path }}/bin/activate"
-        pip install --upgrade "urllib3<2"
-        pip install --force-reinstall --no-cache-dir boto3 botocore
+    - name: Write attack_range.yml with the provided content (use aws_region var)
+      become: yes 
+      copy:
+        dest: /root/attack_range/attack_range.yml
+        content: |
+          general:
+            cloud_provider: aws
+            attack_range_password: Admin123
+            key_name: root-98552
+            ip_whitelist: 0.0.0.0/0
+            attack_range_name: ar-Attack
+          aws:
+            region: "{{ aws_region }}"
+            private_key_path: /home/ubuntu/attack_range/root-98552.key
+          windows_servers:
+          - hostname: ar-win-dc
+            windows_image: windows-server-2022
+            create_domain: '1'
+            install_red_team_tools: '1'
+            bad_blood: '1'
+          linux_servers:
+          - hostname: ar-linux
+          kali_server:
+            kali_server: '1'
+          nginx_server:
+            nginx_server: '1'
+          zeek_server:
+            zeek_server: '1'
+          snort_server:
+            snort_server: '1'
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Run attack_range build (uses poetry) as root (export AWS envs to guarantee matching region)
+      become: yes
+      shell: |
+        export AWS_DEFAULT_REGION="{{ aws_region }}"
+        export AWS_REGION="{{ aws_region }}"
+        export AWS_ACCESS_KEY_ID="{{ aws_access_key }}"
+        export AWS_SECRET_ACCESS_KEY="{{ aws_secret_key }}"
+        export PATH="/root/.local/bin:$PATH"
+        /root/.local/bin/poetry run python attack_range.py build
       args:
+        chdir: /root/attack_range
         executable: /bin/bash
-      become_user: ubuntu
+      register: build_result
 
-    - name: Install python dependencies inside venv
-      ansible.builtin.shell: |
-        set -e
-        source "{{ venv_path }}/bin/activate"
-        cd "{{ repo_dir }}"
-        pip install -r requirements.txt
-        pip install --upgrade "tabulate>=0.9.0"
-        pip install "python-terraform==0.10.1" "python-hcl2==4.3.3"
-      args:
-        chdir: "{{ repo_dir }}"
-        executable: /bin/bash
-      become_user: ubuntu
-
-    - name: Ensure attack_range.conf exists
-      ansible.builtin.command:
-        cmd: cp -n attack_range.conf.template attack_range.conf
-        chdir: "{{ repo_dir }}"
-      become_user: ubuntu
-
-    - name: Configure attack_range.conf - cloud_provider
-      ansible.builtin.ini_file:
-        path: "{{ repo_dir }}/attack_range.conf"
-        section: global
-        option: cloud_provider
-        value: "{{ attack_range_provider }}"
-      become_user: ubuntu
-
-    - name: Configure attack_range.conf - aws region
-      ansible.builtin.ini_file:
-        path: "{{ repo_dir }}/attack_range.conf"
-        section: aws
-        option: region
-        value: "{{ attack_range_region }}"
-      become_user: ubuntu
-
-    - name: Terraform init
-      ansible.builtin.command:
-        cmd: /usr/local/bin/terraform init -input=false
-        chdir: "{{ repo_dir }}/terraform/aws"
-      register: terraform_init
-      changed_when: "'Terraform has been successfully initialized' in terraform_init.stdout"
-      failed_when: terraform_init.rc not in [0,1]
-
-    - name: Run attack_range build with debug
-      ansible.builtin.shell: |
-        set -e
-        source "{{ venv_path }}/bin/activate"
-        cd "{{ repo_dir }}"
-        python attack_range.py -c attack_range.conf build --debug
-      args:
-        chdir: "{{ repo_dir }}"
-        executable: /bin/bash
-      become_user: ubuntu
-      register: attack_range_build
-      failed_when: attack_range_build.rc != 0
-
-    - name: Show build logs if failed
-      ansible.builtin.debug:
+    - name: Print build stdout/stderr
+      debug:
         msg: |
-          rc={{ attack_range_build.rc }}
-          stdout={{ attack_range_build.stdout | default('') }}
-          stderr={{ attack_range_build.stderr | default('') }}
-      when: attack_range_build.rc != 0
+          stdout: {{ build_result.stdout | default('') }}
+          stderr: {{ build_result.stderr | default('') }}
