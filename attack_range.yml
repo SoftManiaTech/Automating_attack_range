@@ -117,6 +117,25 @@
         executable: /bin/bash
       become: yes
 
+    - name: Ensure target dir exists for attack_range key
+      become: yes
+      file:
+        path: /root/attack_range
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy private key from controller to remote (secure)
+      become: yes
+      copy:
+        src: /home/ubuntu/Automating_attack_range/root-98552.pem    # <<-- REPLACE this with controller path to your private key
+        dest: /root/attack_range/root-98552.key
+        owner: root
+        group: root
+        mode: '0600'
+        backup: no
+
     - name: Write attack_range.yml with the provided content (use aws_region var)
       become: yes 
       copy:
