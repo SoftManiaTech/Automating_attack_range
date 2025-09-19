@@ -149,7 +149,7 @@
             attack_range_name: ar-Attack
           aws:
             region: "{{ aws_region }}"
-            private_key_path: /home/ubuntu/attack_range/root-98552.key
+            private_key_path: /root/attack_range/root-98552.key
           windows_servers:
           - hostname: ar-win-dc
             windows_image: windows-server-2022
