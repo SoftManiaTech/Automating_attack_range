@@ -110,7 +110,7 @@ resource "local_file" "ansible_inventory" {
 
   content = <<EOT
 [attack_range]
-${aws_instance.attack_range.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file="/home/ubuntu/attack_range_automation/keys/Admin123.pem" ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+${aws_instance.attack_range.public_ip} ansible_user=ubuntu ansible_ssh_private_key_file="/home/ubuntu/Automating_attack_range/keys/Admin123.pem" ansible_ssh_common_args='-o StrictHostKeyChecking=no'
 EOT
 }
 
