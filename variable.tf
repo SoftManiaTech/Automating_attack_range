@@ -19,6 +19,6 @@ variable "volume_size" {
   default = 50
 }
 
-variable "attack_range_password" {
+variable "splunk_password" {
   type = string
 }

@@ -143,7 +143,7 @@
         content: |
           general:
             cloud_provider: aws
-            attack_range_password: {{ attack_range_password }}
+            splunk_password: {{ splunk_password }}
             key_name: {{ attack_range_key_name }}
             ip_whitelist: 0.0.0.0/0
             attack_range_name: ar-Attack

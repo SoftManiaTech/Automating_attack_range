@@ -10,5 +10,5 @@ aws_secret_key: "YOUR_AWS_SECRET_KEY"
 aws_region: "YOUR_REGION"
 
 # Attack Range Variables
-attack_range_password: "YOUR_PASSWORD"      # <--- CHANGE HERE anytime
+splunk_password: "YOUR_PASSWORD"      # <--- CHANGE HERE anytime
 attack_range_key_name: "YOUR_KEY_NAME"     # <--- CHANGE HERE anytime

@@ -10,8 +10,8 @@ output "aws_region" {
   value = var.aws_region
 }
 
-output "attack_range_password" {
-  value = var.attack_range_password
+output "splunk_password" {
+  value = var.splunk_password
 }
 
 output "key_name" {

@@ -128,7 +128,7 @@ aws_access_key: "${var.aws_access_key}"
 aws_secret_key: "${var.aws_secret_key}"
 aws_region: "${var.aws_region}"
 
-attack_range_password: "${var.attack_range_password}"
+splunk_password: "${var.splunk_password}"
 attack_range_key_name: "${var.key_name}"
 EOT
 }
