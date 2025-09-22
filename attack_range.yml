@@ -129,7 +129,7 @@
     - name: Copy private key from controller to remote (secure)
       become: yes
       copy:
-        src: "/home/ubuntu/Automating_attack_range/{{ attack_range_key_name }}.pem"
+        src: "/home/ubuntu/Automating_attack_range/keys/{{ attack_range_key_name }}.pem"
         dest: "/root/attack_range/{{ attack_range_key_name }}.key"
         owner: root
         group: root
