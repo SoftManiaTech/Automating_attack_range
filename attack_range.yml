@@ -5,10 +5,15 @@
 
   tasks:
 
-    # 1️⃣ Load Terraform output from JSON
-    - name: Load Terraform output
-      ansible.builtin.set_fact:
-        tf_output: "{{ lookup('file', 'tf_output.json') | from_json }}"
+    - name: Get Terraform outputs
+      command: terraform output -json
+      args:
+        chdir: /home/ubuntu/Automating_attack_range
+      register: tf_output_raw
+
+    - name: Set Terraform output fact
+      set_fact:
+        tf_output: "{{ tf_output_raw.stdout | from_json }}"
 
     # 2️⃣ Populate group_vars/all.yml with the Terraform outputs
     - name: Populate group_vars/all.yml
