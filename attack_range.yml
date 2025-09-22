@@ -9,7 +9,7 @@
     - name: Get Terraform outputs
       command: terraform output -json
       args:
-        chdir: /root/Automating_attack_range
+        chdir: /home/ubuntu/Automating_attack_range
       register: tf_output_raw
 
     - name: Set Terraform output fact
@@ -31,7 +31,7 @@
 
           attack_range_password: "{{ tf_output.attack_range_password.value }}"
           attack_range_key_name: "{{ tf_output.key_name.value }}"
-          
+
     - name: Apt update
       apt:
         update_cache: yes
