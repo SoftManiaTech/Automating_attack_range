@@ -8,7 +8,7 @@
     - name: Get Terraform outputs
       command: terraform output -json
       args:
-        chdir: /home/ubuntu/Automating_attack_range
+        chdir: /root/Automating_attack_range
       register: tf_output_raw
 
     - name: Set Terraform output fact
