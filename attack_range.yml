@@ -4,6 +4,29 @@
   become: yes
 
   tasks:
+
+    # 1️⃣ Load Terraform output from JSON
+    - name: Load Terraform output
+      ansible.builtin.set_fact:
+        tf_output: "{{ lookup('file', 'tf_output.json') | from_json }}"
+
+    # 2️⃣ Populate group_vars/all.yml with the Terraform outputs
+    - name: Populate group_vars/all.yml
+      ansible.builtin.copy:
+        dest: group_vars/all.yml
+        content: |
+          terraform_url: "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+          terraform_zip: "/tmp/terraform.zip"
+          awscli_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+          awscliv2_zip: "/tmp/awscliv2.zip"
+
+          aws_access_key: "{{ tf_output.aws_access_key.value }}"
+          aws_secret_key: "{{ tf_output.aws_secret_key.value }}"
+          aws_region: "{{ tf_output.aws_region.value }}"
+
+          attack_range_password: "{{ tf_output.attack_range_password.value }}"
+          attack_range_key_name: "{{ tf_output.key_name.value }}"
+    
     - name: Apt update
       apt:
         update_cache: yes
