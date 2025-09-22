@@ -114,3 +114,22 @@ ${aws_instance.attack_range.public_ip} ansible_user=ubuntu ansible_ssh_private_k
 EOT
 }
 
+# --- CREATE group_vars/all.yml dynamically ---
+resource "local_file" "ansible_all_yml" {
+  filename = "${path.module}/group_vars/all.yml"
+
+  content = <<EOT
+terraform_url: "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
+terraform_zip: "/tmp/terraform.zip"
+awscli_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+awscliv2_zip: "/tmp/awscliv2.zip"
+
+aws_access_key: "${var.aws_access_key}"
+aws_secret_key: "${var.aws_secret_key}"
+aws_region: "${var.aws_region}"
+
+attack_range_password: "${var.attack_range_password}"
+attack_range_key_name: "${var.key_name}"
+EOT
+}
+
