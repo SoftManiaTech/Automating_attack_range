@@ -129,27 +129,27 @@
     - name: Copy private key from controller to remote (secure)
       become: yes
       copy:
-        src: /home/ubuntu/Automating_attack_range/root-98552.pem    # <<-- REPLACE this with controller path to your private key
-        dest: /root/attack_range/root-98552.key
+        src: "/home/ubuntu/Automating_attack_range/{{ attack_range_key_name }}.pem"
+        dest: "/root/attack_range/{{ attack_range_key_name }}.key"
         owner: root
         group: root
         mode: '0600'
         backup: no
 
     - name: Write attack_range.yml with the provided content (use aws_region var)
-      become: yes 
+      become: yes
       copy:
         dest: /root/attack_range/attack_range.yml
         content: |
           general:
             cloud_provider: aws
-            attack_range_password: Admin123
-            key_name: root-98552
+            attack_range_password: {{ attack_range_password }}
+            key_name: {{ attack_range_key_name }}
             ip_whitelist: 0.0.0.0/0
             attack_range_name: ar-Attack
           aws:
             region: "{{ aws_region }}"
-            private_key_path: /root/attack_range/root-98552.key
+            private_key_path: /root/attack_range/{{ attack_range_key_name }}.key
           windows_servers:
           - hostname: ar-win-dc
             windows_image: windows-server-2022
