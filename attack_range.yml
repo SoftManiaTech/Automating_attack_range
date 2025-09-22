@@ -4,34 +4,6 @@
   become: yes
 
   tasks:
-    
-    # ✅ 1. Load Terraform outputs first
-    - name: Get Terraform outputs
-      command: terraform output -json
-      args:
-        chdir: /home/ubuntu/Automating_attack_range
-      register: tf_output_raw
-
-    - name: Set Terraform output fact
-      set_fact:
-        tf_output: "{{ tf_output_raw.stdout | from_json }}"
-
-    - name: Populate group_vars/all.yml dynamically
-      copy:
-        dest: group_vars/all.yml
-        content: |
-          terraform_url: "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip"
-          terraform_zip: "/tmp/terraform.zip"
-          awscli_url: "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-          awscliv2_zip: "/tmp/awscliv2.zip"
-
-          aws_access_key: "{{ tf_output.aws_access_key.value }}"
-          aws_secret_key: "{{ tf_output.aws_secret_key.value }}"
-          aws_region: "{{ tf_output.aws_region.value }}"
-
-          attack_range_password: "{{ tf_output.attack_range_password.value }}"
-          attack_range_key_name: "{{ tf_output.key_name.value }}"
-
     - name: Apt update
       apt:
         update_cache: yes
