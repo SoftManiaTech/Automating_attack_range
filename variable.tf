@@ -22,3 +22,7 @@ variable "volume_size" {
 variable "splunk_password" {
   type = string
 }
+
+variable "attack_range_password" {
+  type = string
+}

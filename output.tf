@@ -17,3 +17,7 @@ output "splunk_password" {
 output "key_name" {
   value = var.key_name
 }
+
+output "attack_range_password" {
+  value =var.attack_range_password
+}
