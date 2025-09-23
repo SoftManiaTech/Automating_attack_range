@@ -4,4 +4,4 @@ aws_region     = "YOUR_REGION"  # <--- ADD REGION HERE
 key_name       = "YOUR_KEY_NAME"        # <--- ADD YOUR KEY NAME HERE
 volume_size    = 50
 splunk_password = "YOUR_PASSWORD"  # <--- ADD PASSWORD HERE
-attack_range_password = "YOUR_ATTACK_RANGE_PASSWORD"
+attack_range_password = "YOUR_ATTACK_RANGE_PASSWORD"   #<----ADD YOUR REMANING OS PASSWORD HERE
